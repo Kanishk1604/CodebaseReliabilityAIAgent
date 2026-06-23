@@ -25,6 +25,26 @@ SOURCE_BOOSTS = {
     ".json": 0.5,
 }
 
+def keyword_boost(question: str, chunk: dict) -> float:
+    text = f"{chunk['file_path']} {chunk['content']}".lower()
+    terms = question.lower().replace("?","").split()
+
+    boost = 1.0
+
+    for term in terms:
+        if term in text:
+            boost += 0.08
+    
+    important_terms = ["auth", "authentication", "login", "jwt", "token", "interceptor"]
+
+    for term in important_terms:
+        if term in question.lower() and term in text:
+            boost += 0.15
+    
+    return boost
+
+
+
 def search_codebase(question: str, limit: int=5) -> list[dict]:
     query_vector = embed_text(question)
 
@@ -40,18 +60,22 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
     #sorts in 
     for result in results:
         extension = result.payload.get("extension")
-        boost = SOURCE_BOOSTS.get(extension, 1.0)
-        adjusted_score = result.score * boost
 
-        chunks.append({
+        boost = SOURCE_BOOSTS.get(extension, 1.0)
+
+        chunk = {
             "score" : result.score,
-            "adjusted_score": adjusted_score,
             "file_path" : result.payload["file_path"],
             "file_name": result.payload.get("file_name"),
             "extension": result.payload.get("extension"),
             "chunk_index": result.payload["chunk_index"],
             "content": result.payload["content"],
-        })
+        }
+        adjusted_boost = keyword_boost(question, chunk)
+        adjusted_score = result.score * boost * adjusted_boost
+
+        chunk["adjusted_score"] = adjusted_score
+        chunks.append(chunk)
 
     chunks.sort(key=lambda chunk: chunk["adjusted_score"], reverse=True)
 
