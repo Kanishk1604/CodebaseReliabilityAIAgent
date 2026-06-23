@@ -69,6 +69,8 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
             "file_name": result.payload.get("file_name"),
             "extension": result.payload.get("extension"),
             "chunk_index": result.payload["chunk_index"],
+            "start_line": result.payload["start_line"],
+            "end_line": result.payload["end_line"],
             "content": result.payload["content"],
         }
         adjusted_boost = keyword_boost(question, chunk)
@@ -130,6 +132,8 @@ def answer_question(question: str) -> dict:
         "sources": [
             {
                 "file_path": chunk["file_path"],
+                "start_line": chunk["start_line"],
+                "end_line": chunk["end_line"],
                 "chunk_index": chunk["chunk_index"],
                 "score": chunk["score"],
                 "adjusted_score": chunk["adjusted_score"],

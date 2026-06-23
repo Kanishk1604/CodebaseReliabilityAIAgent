@@ -45,13 +45,21 @@ def should_index_file(path: Path) -> bool:
 
     return True
 
-def chunk_text(text:str, max_char: int=2000) -> list[str]:
+#strip removes whitespaces
+def chunk_text(text:str, max_lines = 80) -> list[dict]:
     chunks = []
+    lines = text.splitlines()
 
-    for i in range(0,len(text), max_char):
-        chunk = text[i:i+max_char].strip()
+    for start in range(0,len(lines), max_lines):
+        end = min(start+max_lines, len(lines))
+        chunk = "\n".join(lines[start:end]).strip()
+
         if chunk:
-            chunks.append(chunk)
+            chunks.append({
+                "content": chunk,
+                "start_line": start+1,
+                "end_line": end,
+            })
     
     return chunks
 
@@ -90,7 +98,7 @@ def index_repository(repo_path: str) -> dict:
         indexed_files +=1
 
         for chunk_index, chunk in enumerate(chunks):
-            embedding = embed_text(chunk)
+            embedding = embed_text(chunk["content"])
 
             points.append(
                 PointStruct(
@@ -102,7 +110,9 @@ def index_repository(repo_path: str) -> dict:
                         "file_name": file_path.name,
                         "extension": file_path.suffix,
                         "chunk_index": chunk_index,
-                        "content": chunk,
+                        "start_line": chunk["start_line"],
+                        "end_line": chunk["end_line"],
+                        "content": chunk["content"],
                     },
                 )
             )
@@ -119,4 +129,16 @@ def index_repository(repo_path: str) -> dict:
         "repo_path": str(root),
         "indexed_files": indexed_files,
         "indexed_chunks": indexed_chunks,
+    }
+
+
+def get_indexed_summary() -> dict:
+    collection_info = client.get_collection(COLLECTION_NAME)
+
+    return{
+        "collection_name": COLLECTION_NAME,
+        "vector_count": collection_info.points_count,
+        "vector_size": collection_info.config.params.vectors.size,
+        "distance": collection_info.config.params.vectors.distance,
+
     }

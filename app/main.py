@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.indexer import index_repository
+from app.indexer import index_repository,  get_indexed_summary
 from app.retriever import answer_question, search_codebase
 
 app = FastAPI(title = "AI Codebase Agent")
@@ -40,5 +40,12 @@ def get_searched_database(request: AskRequest):
             "question": request.question,
             "results": search_codebase(request.question,limit=10)
         }
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))
+
+@app.get("/summary")
+def sumamry():
+    try:
+        return get_indexed_summary()
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error))
