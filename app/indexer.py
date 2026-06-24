@@ -92,6 +92,24 @@ def get_file_inventory(limit: int =1000) -> dict:
         ],
     }
 
+def reset_index() -> dict:
+    collections = client.get_collections().collections
+    existing_names = {collection.name for collection in collections}
+
+    if COLLECTION_NAME in existing_names:
+        client.delete_collection(collection_name= COLLECTION_NAME)
+
+        return{
+            "status": "deleted",
+            "collection_name": COLLECTION_NAME,
+        }
+    
+    return {
+        "status": "not_found",
+        "collection_name":  COLLECTION_NAME,
+    }
+
+
 def ensure_collection() ->None:
     collections = client.get_collections().collections
     existing_names = {collection.name for collection in collections}

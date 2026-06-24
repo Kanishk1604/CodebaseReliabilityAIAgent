@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory
+from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory, reset_index
 from app.retriever import answer_question, search_codebase
 
 app = FastAPI(title = "AI Codebase Agent")
@@ -65,7 +65,7 @@ def get_searched_database(request: AskRequest):
 
 #shows collection/vector info
 @app.get("/summary")
-def sumamry():
+def summary():
     try:
         return get_indexed_summary()
     except Exception as error:
@@ -74,7 +74,7 @@ def sumamry():
 
 #shows what file types got indexed
 @app.get("/summary/extensions")
-def sumamry():
+def summary_extensions():
     try:
         return get_extension_summary()
     except Exception as error:
@@ -83,8 +83,16 @@ def sumamry():
 
 #shows indexed files and their chunk counts
 @app.get("/summary/inventory")
-def sumamry():
+def summary_inventory():
     try:
         return get_file_inventory()
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) 
+
+#removing a codebase
+@app.delete("/index")
+def delete_index():
+    try:
+        return reset_index()
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) 
