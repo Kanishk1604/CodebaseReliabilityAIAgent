@@ -1,0 +1,13 @@
+Local code repo
+   ↓
+Indexer reads files
+   ↓
+Files split into line-based chunks
+   ↓
+Local embedding model converts chunks into vectors
+   ↓
+Qdrant stores vectors + metadata
+   ↓
+Retriever searches relevant chunks
+   ↓
+Ollama generates answers from retrieved context
