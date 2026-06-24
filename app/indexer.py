@@ -7,6 +7,7 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 
 from app.config import QDRANT_URL, COLLECTION_NAME, VECTOR_SIZE
 from app.embeddings import embed_text
+from app.symbol_extractor import extract_symbol_metadata
 
 from collections import Counter
 # counter is a dictionary
@@ -182,10 +183,13 @@ def index_repository(repo_path: str) -> dict:
         if not chunks:
             continue
 
+
         indexed_files +=1
 
         for chunk_index, chunk in enumerate(chunks):
             embedding = embed_text(chunk["content"])
+            
+            symbol_metadata = extract_symbol_metadata(chunk["content"], file_path.suffix)
 
             points.append(
                 PointStruct(
@@ -200,6 +204,9 @@ def index_repository(repo_path: str) -> dict:
                         "start_line": chunk["start_line"],
                         "end_line": chunk["end_line"],
                         "content": chunk["content"],
+                        #symbol & symboltype
+                        "symbol": symbol_metadata["symbol"],
+                        "symbol_type": symbol_metadata["symbol_type"],
                     },
                 )
             )
