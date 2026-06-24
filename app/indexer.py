@@ -8,6 +8,9 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 from app.config import QDRANT_URL, COLLECTION_NAME, VECTOR_SIZE
 from app.embeddings import embed_text
 
+from collections import Counter
+# counter is a dictionary
+
 client = QdrantClient(url=QDRANT_URL)
 
 ALLOWED_EXTENSIONS = {
@@ -22,6 +25,46 @@ IGNORED_DIRS = {
     "bin", "obj", ".vs",
     ".angular", "cache"
 }
+
+
+def get_indexed_summary() -> dict:
+    collection_info = client.get_collection(COLLECTION_NAME)
+
+    return{
+        "collection_name": COLLECTION_NAME,
+        "vector_count": collection_info.points_count,
+        "vector_size": collection_info.config.params.vectors.size,
+        "distance": collection_info.config.params.vectors.distance,
+
+    }
+
+#beginning of observability
+def get_extension_summary(limit: int=1000) -> dict:
+    #we store PointStruct... , each store object is a point
+    # Qdrant returns ([point1, point2, point3],
+    #                 next_page_offset)
+    #we only care about points, so points, _ 
+    # _ => ignore second value
+
+    points, _ = client.scroll(
+        collection_name=COLLECTION_NAME,
+        limit=limit,
+        with_payload=True,      #we want metadata 
+        with_vectors=False,       #we dont want the vectors since they are numbers
+    )
+
+    counter = Counter() #this creates a dictionary called counter
+
+    for point in points:
+        extension = point.payload.get("extension", "unknown")   #unknown if extension isnt available
+        counter[extension] += 1
+    
+    return {
+        "collection_name": COLLECTION_NAME,
+        "total_scanned_objects": len(points),
+        "extensions": dict(counter),
+    }
+
 
 def ensure_collection() ->None:
     collections = client.get_collections().collections
@@ -131,14 +174,3 @@ def index_repository(repo_path: str) -> dict:
         "indexed_chunks": indexed_chunks,
     }
 
-
-def get_indexed_summary() -> dict:
-    collection_info = client.get_collection(COLLECTION_NAME)
-
-    return{
-        "collection_name": COLLECTION_NAME,
-        "vector_count": collection_info.points_count,
-        "vector_size": collection_info.config.params.vectors.size,
-        "distance": collection_info.config.params.vectors.distance,
-
-    }
