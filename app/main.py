@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.indexer import index_repository,  get_indexed_summary, get_extension_summary
+from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory
 from app.retriever import answer_question, search_codebase
 
 app = FastAPI(title = "AI Codebase Agent")
@@ -57,3 +57,11 @@ def sumamry():
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error))
 
+
+
+@app.get("/summary/inventory")
+def sumamry():
+    try:
+        return get_file_inventory()
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))

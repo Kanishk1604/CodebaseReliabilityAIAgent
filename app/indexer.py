@@ -65,6 +65,32 @@ def get_extension_summary(limit: int=1000) -> dict:
         "extensions": dict(counter),
     }
 
+def get_file_inventory(limit: int =1000) -> dict:
+
+    points, _ = client.scroll(
+        collection_name= COLLECTION_NAME,
+        limit=limit,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    counter = Counter()
+
+    for point in points:
+        file_name = point.payload.get("file_path")
+        counter[file_name] +=1
+
+    sorted_inventory = sorted(counter.items(),key = lambda item:item[1], reverse=True)
+
+    return{
+        "collection_name": COLLECTION_NAME,
+        "inventory": [{
+            "file_path": file_path,
+            "chunk_count": chunk,
+        }
+        for file_path, chunk in sorted_inventory
+        ],
+    }
 
 def ensure_collection() ->None:
     collections = client.get_collections().collections
