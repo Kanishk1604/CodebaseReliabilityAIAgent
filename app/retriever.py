@@ -28,8 +28,17 @@ SOURCE_BOOSTS = {
 def keyword_boost(question: str, chunk: dict) -> float:
     text = f"{chunk['file_path']} {chunk['content']}".lower()
     terms = question.lower().replace("?","").split()
-
     boost = 1.0
+
+    for symbol in chunk.get("semantic_symbols", []):
+        symbol_name = symbol.get("symbol_name") or ""
+        symbol_type = symbol.get("symbol_type") or ""
+
+        symbol_text = f"{symbol_name} {symbol_type}".lower()
+
+        for term in terms:
+            if term in symbol_text:
+                boost += 0.2
 
     for term in terms:
         if term in text:
@@ -38,11 +47,16 @@ def keyword_boost(question: str, chunk: dict) -> float:
     important_terms = ["auth", "authentication", "login", "jwt", "token", "interceptor"]
 
     for term in important_terms:
-        if term in question.lower() and term in text:
+        if term in terms and term in text:      #question.lower()
             boost += 0.15
     
     return boost
 
+# def symbol_booster(question: str, chunk: dict) -> float:
+#     terms = question.lower().replace("?","").split()
+#     text = 
+
+#     boost = 1.0
 
 
 def search_codebase(question: str, limit: int=5) -> list[dict]:
@@ -63,6 +77,8 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
 
         boost = SOURCE_BOOSTS.get(extension, 1.0)
 
+        semantic_symbols = result.payload.get("semantic_symbols", [])
+
         chunk = {
             "score" : result.score,
             "file_path" : result.payload["file_path"],
@@ -72,8 +88,10 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
             "start_line": result.payload["start_line"],
             "end_line": result.payload["end_line"],
             "content": result.payload["content"],
+            "semantic_symbols": semantic_symbols,
         }
         adjusted_boost = keyword_boost(question, chunk)
+
         adjusted_score = result.score * boost * adjusted_boost
 
         chunk["adjusted_score"] = adjusted_score

@@ -54,6 +54,7 @@ def get_searched_database(request: AskRequest):
                 "end_line": chunk["end_line"],
                 "score": chunk["score"],
                 "adjusted_score": chunk["adjusted_score"],
+                "semantic_symbols": chunk["semantic_symbols"],
                 "preview": chunk["content"][:300],
             }
             for chunk in chunks

@@ -11,3 +11,23 @@ Qdrant stores vectors + metadata
 Retriever searches relevant chunks
    ↓
 Ollama generates answers from retrieved context
+
+curl -X POST http://localhost:8000/index \
+-H "Content-Type: application/json" \
+-d '{
+    "repo_path": "/Users/knotbott/Projects/EnterPriseResourceDashboard"
+}'
+
+curl -X POST http://localhost:8000/ask \
+-H "Content-Type: application/json" \
+-d '{
+    "question": "Where is authentication handled?"
+}'
+
+curl -X POST http://localhost:8000/search \
+-H "Content-Type: application/json" \
+-d '{
+    "question": "AuthService"
+}'
+
+curl -X POST http://localhost:8000/reset

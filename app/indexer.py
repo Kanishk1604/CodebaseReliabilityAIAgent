@@ -12,6 +12,8 @@ from app.symbol_extractor import extract_symbol_metadata
 from collections import Counter
 # counter is a dictionary
 
+from app.ast_symbol_extractor import extract_ast_symbols 
+
 client = QdrantClient(url=QDRANT_URL)
 
 ALLOWED_EXTENSIONS = {
@@ -182,14 +184,15 @@ def index_repository(repo_path: str) -> dict:
 
         if not chunks:
             continue
-
-
+        
         indexed_files +=1
 
         for chunk_index, chunk in enumerate(chunks):
             embedding = embed_text(chunk["content"])
             
-            symbol_metadata = extract_symbol_metadata(chunk["content"], file_path.suffix)
+            # symbol_metadata = extract_symbol_metadata(chunk["content"], file_path.suffix)
+
+            symbols = extract_ast_symbols(file_path, chunk["content"])     #parsing using AST-Retrieval
 
             points.append(
                 PointStruct(
@@ -205,14 +208,20 @@ def index_repository(repo_path: str) -> dict:
                         "end_line": chunk["end_line"],
                         "content": chunk["content"],
                         #symbol & symboltype
-                        "symbol": symbol_metadata["symbol"],
-                        "symbol_type": symbol_metadata["symbol_type"],
+                        "semantic_symbols": [
+                            {
+                                "symbol_name": symbol["name"],
+                                "symbol_type": symbol["type"],
+                            }
+                            for symbol in symbols
+                        ],
                     },
                 )
             )
 
             indexed_chunks += 1
-
+    
+    
     if points:
         client.upsert(
             collection_name= COLLECTION_NAME,

@@ -1,0 +1,41 @@
+[
+  {
+    "id": "auth_location",
+    "question": "Where is authentication handled?",
+    "expected_files": [
+      "erd-web/src/app/core/auth.service.ts",
+      "erd-web/src/app/core/jwt.interceptor.ts"
+    ],
+    "expected_terms": [
+      "login",
+      "token",
+      "Authorization"
+    ]
+  },
+  {
+    "id": "login",
+    "question": "Where does login occur?",
+    "expected_files": [
+      "erd-web/src/app/core/auth.service.ts",
+      "erd-web/src/app/core/jwt.interceptor.ts"
+    ],
+    "expected_terms": [
+      "login",
+      "token",
+      "Authorization"
+    ]
+  },
+  {
+    "id": "auth_location",
+    "question": "Where is authentication handled?",
+    "expected_files": [
+        "erd-web/src/app/core/auth.service.ts",
+        "erd-web/src/app/core/jwt.interceptor.ts"
+    ],
+    "expected_terms": [
+        "login",
+        "token",
+        "Authorization"
+    ]
+    }
+]
