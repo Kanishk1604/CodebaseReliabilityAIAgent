@@ -53,6 +53,7 @@ def get_searched_database(request: AskRequest):
                 "start_line": chunk["start_line"],
                 "end_line": chunk["end_line"],
                 "score": chunk["score"],
+                "symbol_matches": chunk["symbol_matches"],
                 "adjusted_score": chunk["adjusted_score"],
                 "semantic_symbols": chunk["semantic_symbols"],
                 "preview": chunk["content"][:300],

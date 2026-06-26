@@ -25,7 +25,7 @@ SOURCE_BOOSTS = {
     ".json": 0.5,
 }
 
-def keyword_boost(question: str, chunk: dict) -> float:
+def keyword_boost(question: str, chunk: dict, symbol_matches: list[str]) -> float:
     text = f"{chunk['file_path']} {chunk['content']}".lower()
     terms = question.lower().replace("?","").split()
     boost = 1.0
@@ -35,9 +35,10 @@ def keyword_boost(question: str, chunk: dict) -> float:
         symbol_type = symbol.get("symbol_type") or ""
 
         symbol_text = f"{symbol_name} {symbol_type}".lower()
-
+        
         for term in terms:
             if term in symbol_text:
+                symbol_matches.append(symbol_name)
                 boost += 0.2
 
     for term in terms:
@@ -90,11 +91,13 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
             "content": result.payload["content"],
             "semantic_symbols": semantic_symbols,
         }
-        adjusted_boost = keyword_boost(question, chunk)
+        symbol_matches = []
+        adjusted_boost = keyword_boost(question, chunk, symbol_matches)
 
         adjusted_score = result.score * boost * adjusted_boost
 
         chunk["adjusted_score"] = adjusted_score
+        chunk["symbol_matches"] = symbol_matches
         chunks.append(chunk)
 
     chunks.sort(key=lambda chunk: chunk["adjusted_score"], reverse=True)
