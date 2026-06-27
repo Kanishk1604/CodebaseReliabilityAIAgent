@@ -1,41 +1,86 @@
 [
   {
-    "id": "auth_location",
-    "question": "Where is authentication handled?",
+    "id": "auth_service",
+    "question": "Where is AuthService defined?",
     "expected_files": [
-      "erd-web/src/app/core/auth.service.ts",
-      "erd-web/src/app/core/jwt.interceptor.ts"
+      "erd-web/src/app/core/auth.service.ts"
     ],
-    "expected_terms": [
-      "login",
-      "token",
-      "Authorization"
+    "expected_symbols": [
+      "AuthService"
     ]
   },
   {
-    "id": "login",
-    "question": "Where does login occur?",
+    "id": "login_method",
+    "question": "Where is the login method implemented?",
     "expected_files": [
-      "erd-web/src/app/core/auth.service.ts",
-      "erd-web/src/app/core/jwt.interceptor.ts"
+      "erd-web/src/app/core/auth.service.ts"
     ],
-    "expected_terms": [
-      "login",
-      "token",
-      "Authorization"
+    "expected_symbols": [
+      "login"
     ]
   },
   {
-    "id": "auth_location",
+    "id": "logout_method",
+    "question": "Where is the logout method implemented?",
+    "expected_files": [
+      "erd-web/src/app/core/auth.service.ts"
+    ],
+    "expected_symbols": [
+      "logout"
+    ]
+  },
+  {
+    "id": "jwt_interceptor",
+    "question": "Where is the JWT interceptor implemented?",
+    "expected_files": [
+      "erd-web/src/app/core/jwt.interceptor.ts"
+    ],
+    "expected_symbols": [
+      "jwtInterceptor"
+    ]
+  },
+  {
+    "id": "login_component",
+    "question": "Where is LoginComponent defined?",
+    "expected_files": [
+      "erd-web/src/app/pages/login/login.ts"
+    ],
+    "expected_symbols": [
+      "LoginComponent"
+    ]
+  },
+  {
+    "id": "authentication",
     "question": "Where is authentication handled?",
     "expected_files": [
-        "erd-web/src/app/core/auth.service.ts",
-        "erd-web/src/app/core/jwt.interceptor.ts"
+      "erd-web/src/app/core/auth.service.ts",
+      "erd-web/src/app/core/jwt.interceptor.ts",
+      "erd-web/src/app/pages/login/login.ts"
     ],
-    "expected_terms": [
-        "login",
-        "token",
-        "Authorization"
+    "expected_symbols": [
+      "AuthService",
+      "login"
     ]
-    }
+  },
+  {
+    "id": "token_storage",
+    "question": "Where is the JWT token stored?",
+    "expected_files": [
+      "erd-web/src/app/core/auth.service.ts"
+    ],
+    "expected_symbols": [
+      "getToken",
+      "setToken"
+    ]
+  },
+  {
+    "id": "is_logged_in",
+    "question": "Where is isLoggedIn implemented?",
+    "expected_files": [
+      "erd-web/src/app/core/auth.service.ts"
+    ],
+    "expected_symbols": [
+      "isLoggedIn"
+    ]
+  }
 ]

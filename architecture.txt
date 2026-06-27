@@ -30,4 +30,4 @@ curl -X POST http://localhost:8000/search \
     "question": "AuthService"
 }'
 
-curl -X POST http://localhost:8000/reset
+curl -X DELETE http://localhost:8000/index

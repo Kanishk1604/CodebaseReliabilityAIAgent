@@ -95,6 +95,55 @@ def get_file_inventory(limit: int =1000) -> dict:
         ],
     }
 
+def get_graph_dependencies(limit: int = 1000) -> dict:
+    points, _ = client.scroll(
+        collection_name= COLLECTION_NAME,
+        limit=limit,
+        with_payload=True,
+        with_vectors=False,
+    )
+    dependencies = []
+
+    for point in points:
+        file_name = point.payload.get("file_path")
+        imports = point.payload.get("imports", [])
+        if imports: 
+            dependencies.append({
+                "file_name": file_name,
+                "imports": imports,
+            })
+    
+    return{
+        "dependencies": dependencies
+    }
+
+def get_files_for_symbols(query: str) -> dict:
+    points, _ = client.scroll(
+        collection_name= COLLECTION_NAME,
+        limit=1000,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    dependants = []
+
+    for point in points:
+        imports = point.payload.get("imports", [])
+        if imports:
+            for imported in imports:
+                if (query == imported["source"]) or (query in imported["imported_symbols"]):
+                    file_name = point.payload.get("file_path")
+                    dependants.append({
+                        "file_path": file_name,
+                        "source": imported["source"],
+                        "matched_symbol": query,
+                    })
+
+    return{
+        "query": query,
+        "dependants": dependants,
+    }
+
 def reset_index() -> dict:
     collections = client.get_collections().collections
     existing_names = {collection.name for collection in collections}
@@ -192,7 +241,8 @@ def index_repository(repo_path: str) -> dict:
             
             # symbol_metadata = extract_symbol_metadata(chunk["content"], file_path.suffix)
 
-            symbols = extract_ast_symbols(file_path, chunk["content"])     #parsing using AST-Retrieval
+            ast_metadata = extract_ast_symbols(file_path, chunk["content"])    #parsing using AST-Retrieval
+
 
             points.append(
                 PointStruct(
@@ -213,7 +263,13 @@ def index_repository(repo_path: str) -> dict:
                                 "symbol_name": symbol["name"],
                                 "symbol_type": symbol["type"],
                             }
-                            for symbol in symbols
+                            for symbol in ast_metadata["symbols"]
+                        ],
+                        "imports": [{
+                            "source": imported["source"],
+                            "imported_symbols": imported["imported_symbols"]
+                        }
+                        for imported in ast_metadata["imports"]
                         ],
                     },
                 )

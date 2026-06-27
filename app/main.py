@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory, reset_index
+from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory, reset_index, get_graph_dependencies, get_files_for_symbols
 from app.retriever import answer_question, search_codebase
 
 app = FastAPI(title = "AI Codebase Agent")
@@ -56,6 +56,7 @@ def get_searched_database(request: AskRequest):
                 "symbol_matches": chunk["symbol_matches"],
                 "adjusted_score": chunk["adjusted_score"],
                 "semantic_symbols": chunk["semantic_symbols"],
+                "imports": chunk["imports"],
                 "preview": chunk["content"][:300],
             }
             for chunk in chunks
@@ -96,5 +97,21 @@ def summary_inventory():
 def delete_index():
     try:
         return reset_index()
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) 
+
+
+@app.get("/graph/dependencies")
+def get_dependencies():
+    try:
+        return get_graph_dependencies()
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) 
+
+
+@app.get("/graph/dependents/{query}")
+def get_dependents(query: str):
+    try:
+        return get_files_for_symbols(query)
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) 

@@ -130,13 +130,13 @@ def main() -> None:
     print()
 
     print("TREE")
-    # print_tree(root, source_bytes)
+    print_tree(root, source_bytes)
     
     symbols = []
-    collect_symbol(root,source_bytes,symbols)
+    # collect_symbol(root,source_bytes,symbols)
 
-    for symbol in symbols:
-        print(f"{symbol['type']:10} : {symbol['name']}")
+    # for symbol in symbols:
+    #     print(f"{symbol['type']:10} : {symbol['name']}")
 
 
 if __name__ == "__main__":
