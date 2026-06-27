@@ -4,7 +4,7 @@ from pathlib import Path
 
 EXTENSION_TO_LANGUAGE = {
     ".ts": "typescript",
-    ".tsx": "typescript",
+    ".tsx": "tsx",
     ".js": "javascript",
     ".jsx": "javascript",
     ".py": "python",
@@ -76,7 +76,7 @@ def collect_children_text_by_import(node, child_type: str, import_symbols: list[
         collect_children_text_by_import(child, child_type, import_symbols, source_bytes)
             
 #get imports and modules used
-def collect_imports(node, imports:list[dict], source_bytes: bytes, language: str):
+def imports_collector(node, imports:list[dict], source_bytes: bytes, language: str):
     if node.type == None:
         return None
 
@@ -97,10 +97,10 @@ def collect_imports(node, imports:list[dict], source_bytes: bytes, language: str
             })
     
     for child in node.children:
-        collect_imports(child, imports, source_bytes, language)
+        imports_collector(child, imports, source_bytes, language)
 
 
-#returns semantic symbols
+#get semantic symbols
 def semantic_collector(node, symbols: list[dict], source_bytes: bytes, language: str):
     if node.type == None:
         return None
@@ -145,7 +145,7 @@ def extract_ast_symbols(file_path: Path, content: str) -> dict:
     root = tree.root_node
 
     semantic_collector(root, symbols, source_bytes, language)
-    collect_imports(root, imports, source_bytes, language)
+    imports_collector(root, imports, source_bytes, language)
 
    
     return {

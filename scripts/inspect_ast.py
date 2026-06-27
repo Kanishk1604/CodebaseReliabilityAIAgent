@@ -27,7 +27,7 @@ def get_node_text(node, source_bytes: bytes) -> str:
     return node_text
     
 #printing the entire tree / source file using AST retrieval
-def print_tree(node, source_bytes: bytes, indent:int = 0, max_depth :int =4) -> None:
+def print_tree(node, source_bytes: bytes, indent:int = 0, max_depth :int =18) -> None:
     if indent > max_depth:
         return 
 
@@ -100,7 +100,7 @@ def main() -> None:
 
     source_bytes = file_path.read_bytes()
 
-    language = get_language("typescript")
+    language = get_language("tsx")
     parser = Parser(language)
 
     tree = parser.parse(source_bytes)
