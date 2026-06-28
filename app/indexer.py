@@ -95,6 +95,103 @@ def get_file_inventory(limit: int =1000) -> dict:
         ],
     }
 
+def get_graph_summary(limit: int =1000) -> dict:
+    points, _ = client.scroll(
+        collection_name= COLLECTION_NAME,
+        limit=limit,
+        with_payload=True,
+        with_vectors=False,
+    )
+    seen_import_files = set()
+    seen_call_files = set()
+    counter_import_files = 0
+    counter_call_files = 0
+    total_imported_symbols = 0
+    total_calls = 0
+
+    counter_symbols = Counter()
+    counter_methods = Counter()
+
+    max_method_frequency = 0
+    max_imported_symbol_frequency = 0
+
+    methods_with_most_frequency = []
+    imported_symbols_with_most_frequency = []
+
+    for point in points: 
+        #imports
+        imports = point.payload.get("imports")
+        if imports:
+            
+            # How many files have imports?
+            file_name = point.payload.get("file_path")
+            
+            if file_name not in seen_import_files:
+                seen_import_files.add(file_name)
+                counter_import_files += 1
+
+            #What symbols are imported most?
+            for imported in imports:
+                imported_symbol_names = imported["imported_symbols"]
+                for imported_symbol_name in imported_symbol_names:
+                    counter_symbols[imported_symbol_name] += 1
+                    total_imported_symbols += 1
+                  
+        #callers
+        callers = point.payload.get("calls")
+        if callers:
+
+            # How many files have calls?
+            file_name = point.payload.get("file_path")
+            
+            if file_name not in seen_call_files:
+                seen_call_files.add(file_name)
+                counter_call_files += 1
+        
+            # What methods are called most?
+            for caller in callers:
+                method_name = caller["method"]
+                counter_methods[method_name] += 1
+                total_calls += 1
+
+    #max imported symbol frequency
+    for imported_symbol_name, symbol_frequency in counter_symbols.items():
+        if symbol_frequency >= max_imported_symbol_frequency:
+            max_imported_symbol_frequency = symbol_frequency
+
+    #all imported symbols with equal max frequency
+    for imported_symbol_name, symbol_frequency in counter_symbols.items():
+        if symbol_frequency == max_imported_symbol_frequency:
+            imported_symbols_with_most_frequency.append(imported_symbol_name)
+
+    #max method frequency
+    for method_name, method_frequency in counter_methods.items():
+        if method_frequency >= max_method_frequency:
+            max_method_frequency = method_frequency
+    
+    #all methods with equal max frequency
+    for method_name, method_frequency in counter_methods.items():
+        if method_frequency == max_method_frequency:
+            methods_with_most_frequency.append(method_name)
+
+    return{
+        "files_with_imports": counter_import_files,
+        "files_with_calls": counter_call_files,
+        "total_import_edges": total_imported_symbols,
+        "total_calls_edges": total_calls,
+        "top_imported_symbols":{
+            "imported_symbols": [imported_symbols for imported_symbols in imported_symbols_with_most_frequency],
+            "frequency_imported_symbol": max_imported_symbol_frequency
+        }
+        ,
+        "top_method_called":{
+            "methods_called": [methods for methods in methods_with_most_frequency],
+            "frequency_method_calls": max_method_frequency,
+        }
+        
+    }
+
+
 def get_graph_dependencies(limit: int = 1000) -> dict:
     points, _ = client.scroll(
         collection_name= COLLECTION_NAME,
@@ -117,7 +214,7 @@ def get_graph_dependencies(limit: int = 1000) -> dict:
         "dependencies": dependencies
     }
 
-def get_files_for_symbols(query: str) -> dict:
+def get_graph_dependents(query: str) -> dict:
     points, _ = client.scroll(
         collection_name= COLLECTION_NAME,
         limit=1000,
@@ -142,6 +239,40 @@ def get_files_for_symbols(query: str) -> dict:
     return{
         "query": query,
         "dependants": dependants,
+    }
+
+
+def get_files_for_calls(query: str) -> dict:
+    points, _ = client.scroll(
+        collection_name= COLLECTION_NAME,
+        limit=1000,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    callers = []
+
+    for point in points:
+        seen = set()
+        calls = point.payload.get("calls", [])
+        if calls:
+            for called_method in calls:
+                if (query == called_method["object"]) or (query == called_method["method"]):
+                    file_name = point.payload.get("file_path")
+                    key = (file_name, called_method["object"], called_method["method"])
+                    if key not in seen:
+                        callers.append({
+                            "file_path": file_name,
+                            "object": called_method["object"],
+                            "method": called_method["method"],
+                            "start_line": point.payload.get("start_line"),
+                            "end_line": point.payload.get("end_line"),
+                        })
+                        seen.add(key)
+
+    return{
+        "query": query,
+        "callers": callers,
     }
 
 def reset_index() -> dict:
@@ -270,6 +401,12 @@ def index_repository(repo_path: str) -> dict:
                             "imported_symbols": imported["imported_symbols"]
                         }
                         for imported in ast_metadata["imports"]
+                        ],
+                        "calls": [{
+                            "object": called_method["object"],
+                            "method": called_method["method"],
+                        }
+                        for called_method in ast_metadata["calls"]
                         ],
                     },
                 )
