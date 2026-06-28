@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory, reset_index, get_graph_dependencies, get_files_for_symbols
-from app.retriever import answer_question, search_codebase
+from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory, reset_index, get_graph_dependencies, get_graph_dependents, get_files_for_calls, get_graph_summary
+from app.retriever import answer_question, search_codebase, build_reasoning_context
 
 app = FastAPI(title = "AI Codebase Agent")
 
@@ -57,7 +57,9 @@ def get_searched_database(request: AskRequest):
                 "adjusted_score": chunk["adjusted_score"],
                 "semantic_symbols": chunk["semantic_symbols"],
                 "imports": chunk["imports"],
+                "calls": chunk["calls"],
                 "preview": chunk["content"][:300],
+               
             }
             for chunk in chunks
             ],
@@ -100,7 +102,7 @@ def delete_index():
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) 
 
-
+#the imports in a file
 @app.get("/graph/dependencies")
 def get_dependencies():
     try:
@@ -108,10 +110,39 @@ def get_dependencies():
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) 
 
-
+#who imports query
 @app.get("/graph/dependents/{query}")
 def get_dependents(query: str):
     try:
-        return get_files_for_symbols(query)
+        return get_graph_dependents(query)
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) 
+
+
+@app.get("/graph/calls/{query}")
+def get_dependents(query: str):
+    try:
+        return get_files_for_calls(query)
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) 
+
+@app.get("/graph/summary")
+def graph_summary():
+    try:
+        return get_graph_summary()
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) 
+
+@app.post("/reason")
+def get_reason_context(request: AskRequest):
+    try:
+        chunks = search_codebase(request.question,limit=10)
+        context = build_reasoning_context(request.question,chunks)
+
+        print(context)
+
+        return context
+      
+
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) 
