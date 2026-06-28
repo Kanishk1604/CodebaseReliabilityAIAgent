@@ -31,3 +31,5 @@ curl -X POST http://localhost:8000/search \
 }'
 
 curl -X DELETE http://localhost:8000/index
+
+python -m scripts.run_retrieval_eval   

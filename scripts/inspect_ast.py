@@ -96,7 +96,8 @@ def collect_symbol(node, source_bytes: bytes, symbols: list[dict]) -> None:
 
 def main() -> None:
 
-    file_path = Path("/Users/knotbott/Projects/Codebase_reliability_agent/scripts/sample.tsx")
+    # file_path = Path("/Users/knotbott/Projects/Codebase_reliability_agent/scripts/sample.tsx")
+    file_path = Path("/Users/knotbott/Projects/EnterPriseResourceDashboard/erd-web/src/app/pages/login/login.ts")
 
     source_bytes = file_path.read_bytes()
 
