@@ -4,7 +4,7 @@ from pathlib import Path
 
 EXTENSION_TO_LANGUAGE = {
     ".ts": "typescript",
-    ".tsx": "tsx",
+    ".tsx": "typescript",
     ".js": "javascript",
     ".jsx": "javascript",
     ".py": "python",
@@ -42,11 +42,31 @@ IMPORT_RULES ={
         "import_statement": {
             "source_type": "string_fragment",
             "symbol_type": "import_specifier",
-        }}
+        }
+    },
+}
+
+CALL_RULES = {
+    "typescript": {
+        "call_expression": {
+            "member_expression": {
+                "object": "identifier",
+                "method": "property_identifier",
+            }
+        }
+    }
 }
 
 def get_language_for_extension(extension: str) -> str:
     return EXTENSION_TO_LANGUAGE.get(extension, None)
+
+
+def find_direct_child_by_type(node, child_type: str):
+    for child in node.children:
+        if child.type == child_type:
+            return child
+    
+    return None
 
 #helper
 def find_child_by_type(node, child_type: str) :
@@ -100,6 +120,34 @@ def imports_collector(node, imports:list[dict], source_bytes: bytes, language: s
         imports_collector(child, imports, source_bytes, language)
 
 
+#get the imported object and the its method calls
+def calls_collector(node, calls: list[dict], source_bytes: bytes, language: str):
+    if node.type == None:
+        return None
+
+    rules = CALL_RULES.get(language, {})
+
+    if node.type in rules:
+        member_node = find_direct_child_by_type(node, "member_expression")
+
+        if member_node:
+            member_text = get_node_text(member_node, source_bytes).strip()
+
+            if "." in member_text:
+                parts = member_text.split(".")
+                method = parts[-1]
+                object_name = ".".join(parts[:-1])
+
+                if method and object_name:
+                    calls.append({
+                        "object": object_name,
+                        "method": method,
+                    })
+    
+    for child in node.children:
+        calls_collector(child, calls, source_bytes, language)
+
+
 #get semantic symbols
 def semantic_collector(node, symbols: list[dict], source_bytes: bytes, language: str):
     if node.type == None:
@@ -124,17 +172,20 @@ def semantic_collector(node, symbols: list[dict], source_bytes: bytes, language:
     for child in node.children:
         semantic_collector(child, symbols, source_bytes,language)
 
+
 #parse file and retireve symbols and imports
 def extract_ast_symbols(file_path: Path, content: str) -> dict:
     source_bytes = content.encode()
     symbols = []
     imports = []
+    calls = []
     language = get_language_for_extension(file_path.suffix)
     
     if not language:
         return {
             "symbols": [],
             "imports": [],
+            "calls": [],
         }
 
     language_semantic = get_language(language)
@@ -146,11 +197,12 @@ def extract_ast_symbols(file_path: Path, content: str) -> dict:
 
     semantic_collector(root, symbols, source_bytes, language)
     imports_collector(root, imports, source_bytes, language)
-
+    calls_collector(root, calls, source_bytes, language)
    
     return {
         "symbols": symbols,
-        "imports": imports
+        "imports": imports,
+        "calls": calls,
     }
 
 
@@ -161,7 +213,9 @@ def main() ->None:
     content = file_path.read_text(encoding="utf-8", errors="ignore")
     # symbols = extract_ast_symbols(file_path,content)
     # imports = extract_ast_symbols(file_path,content)
+    metadata = extract_ast_symbols(file_path,content)
 
+    print(metadata["calls"])
     # for imported in imports:
     #     print(f"{imported['source']:10} : {imported['imported_symbols']}")
 
