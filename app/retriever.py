@@ -93,6 +93,7 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
 
         semantic_symbols = result.payload.get("semantic_symbols", [])
         imports = result.payload.get("imports", [])
+        calls = result.payload.get("calls", [])
 
         chunk = {
             "score" : result.score,
@@ -105,6 +106,7 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
             "content": result.payload["content"],
             "semantic_symbols": semantic_symbols,
             "imports": imports,
+            "calls": calls,
         }
         symbol_matches = []
         adjusted_boost = keyword_boost(question, chunk, symbol_matches)
@@ -128,6 +130,130 @@ def format_symbols(chunk: dict)-> str:
     return ", ".join(f"{symbol.get("symbol_name") or ""} {symbol.get("symbol_type") or ""}".strip()
         for symbol in chunk.get("semantic_symbols",[])
     )
+
+def is_noisy_call(call: dict) -> bool:
+
+    object_name = (call.get("object") or "").lower()
+    method_name = (call.get("method") or "").lower()
+
+    noisy_objects = {"console", "logger"}
+    noisy_methods = {"log", "debug", "info", "warn", "error"}
+
+    return object_name in noisy_objects or method_name in noisy_methods
+
+def is_test_file(chunk:dict) -> bool:
+    file_path = (chunk.get("file_path") or "").lower()
+    file_name = (chunk.get("file_name") or "").lower()
+
+    return (
+        ".spec." in file_name
+        or ".test." in file_name
+        or "/test/" in file_path
+        or "/tests/" in file_path
+    )
+      
+def build_relationships(chunks: dict) -> str:
+    
+    relationships = []
+    seen = set()
+
+    for chunk in chunks[:5]:
+        if is_test_file(chunk):
+            continue
+        file_name = chunk["file_name"]
+        
+        for imported in chunk.get("imports", []):
+            source = imported.get("source", "")
+            for symbol in imported.get("imported_symbol", []):
+                relationship = f"{file_name} imports {symbol} from {source}"
+
+                if relationship not in seen:
+                    seen.add(relationship)
+                    relationships.append(relationship)
+            
+        for call in chunk.get("calls", []):
+            if is_noisy_call(call):
+                continue
+
+            object_name = call.get("object") or ""
+            method_name = call.get("method") or ""
+
+            relationship = f"{file_name} calls {object_name}.{method_name}"
+
+            if relationship not in seen:
+                seen.add(relationship)
+                relationships.append(relationship)
+
+    if not relationships:
+        return "RELATIONSHIPS:\n none\n"
+
+    return "RELATIONSHIPS:\n" + "\n".join(
+        f"- {relationship}" for relationship in relationships
+    ) + "\n"
+
+
+def build_reasoning_context(question: str, chunks: dict) -> str:
+    reasoning_context = ""
+    reasoning_context += f"QUESTION:\n{question}\n\n"
+    reasoning_context += "RETRIEVED FILES:\n"
+
+    for chunk in chunks[:5]:
+        if chunk["extension"] == ".md":
+            continue
+        reasoning_context += f"{chunk['file_name']} {chunk['start_line']}-{chunk['end_line']}\n"
+        symbol_count = 1
+        import_count = 1
+        calls_count = 1
+        
+        semantic_symbols = chunk["semantic_symbols"]
+        reasoning_context += "Symbols: "
+        if semantic_symbols:
+            for semantic_symbol in semantic_symbols:
+                reasoning_context += f"{semantic_symbol['symbol_name']}"
+                if symbol_count >= len(semantic_symbols):
+                    reasoning_context += "\n"
+                else:
+                    reasoning_context += ", "
+                symbol_count += 1
+        else:
+            reasoning_context += "none\n"
+
+        imported_symbols = chunk["imports"]
+        reasoning_context += "Imports: "
+        if imported_symbols:
+            for imported_symbol in imported_symbols:
+                imported_symboles_list = imported_symbol["imported_symbols"] 
+                imported_symboles_source = imported_symbol["source"]
+                imported_symboles_str = ", ".join(imported_symboles_list)
+
+                reasoning_context += f"{imported_symboles_str} from {imported_symboles_source}"
+                if import_count >= len(imported_symbols):
+                    reasoning_context += "\n"
+                else:
+                    reasoning_context += ", "
+                import_count += 1
+        else:
+            reasoning_context += "none\n"
+        
+        calls = chunk["calls"]
+        reasoning_context += "Calls: "
+        if calls:
+            for called in calls:
+                reasoning_context += f"{called['object']}.{called['method']}"
+                if calls_count >= len(calls):
+                    reasoning_context += "\n"
+                else:
+                    reasoning_context += ", "
+                calls_count += 1
+        else:
+            reasoning_context += "none\n"
+        
+        reasoning_context += "\n"
+
+    reasoning_context += build_relationships(chunks)
+
+
+    return reasoning_context
 
 #RAG function -> Retrieval-Augmented Generation => Search first, then answer using what you found
 def answer_question(question: str) -> dict:
