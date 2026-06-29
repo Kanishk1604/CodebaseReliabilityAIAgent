@@ -28,13 +28,13 @@ def index_repo(request: IndexRequest):
         raise HTTPException(status_code=500, detail=str(error))
 
 
-#answer questions using retireved code context
-@app.post("/ask")
-def ask_question(request: AskRequest):
-    try: 
-        return answer_question(request.question)
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error))
+# #answer questions using retireved code context
+# @app.post("/ask")
+# def ask_question(request: AskRequest):
+#     try: 
+#         return answer_question(request.question)
+#     except Exception as error:
+#         raise HTTPException(status_code=500, detail=str(error))
 
 
 #shows raw retrieval results without LLM
@@ -146,3 +146,13 @@ def get_reason_context(request: AskRequest):
 
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) 
+
+
+@app.post("/ask")
+def ask_question(request: AskRequest):
+    try: 
+        chunks = search_codebase(request.question,limit=10)
+        retrieved_context = build_reasoning_context(request.question,chunks)
+        return answer_question(request.question,retrieved_context)
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))

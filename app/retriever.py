@@ -256,26 +256,44 @@ def build_reasoning_context(question: str, chunks: dict) -> str:
     return reasoning_context
 
 #RAG function -> Retrieval-Augmented Generation => Search first, then answer using what you found
-def answer_question(question: str) -> dict:
+def answer_question(question: str, reasoning_context: str) -> dict:
     chunks = search_codebase(question)
-
-    context = "/n/n".join(
+    context = ""
+    answer_chunks = [
+        chunk for chunk in chunks
+        if not is_test_file(chunk)
+    ]
+    context = "\n\n".join(
         f"FILE: {chunk['file_path']}\n"
         f"CHUNK: {chunk['chunk_index']}\n"
         f"CODE: \n{chunk['content']}"
-        for chunk in chunks
+        for chunk in answer_chunks
     )
 
     prompt = f"""
     You are a senior software engineer helping understand a codebase.
 
-    Answer the user's question using only the provided repository context.
+    Answer the user's question using only the provided repository context and structured evidence.
+    
+    When the evidence clearly identifies multiple cooperating files, explain them as a flow instead of saying the answer is unclear.
 
-    If the answer is not present in the context, say that the indexed context is insufficient.
+    Be precise about request direction. Interceptors attach headers to outgoing HTTP requests, not responses.
+
+    When explaining a flow, order steps by runtime or dependency sequence using the retrieved calls, imports, and file relationships.
+    
+   Do not claim something is missing if a relevant symbol, file, or call appears in the structured evidence. If unsure, say "the retrieved context does not show the full implementation details."
+   
+   Before saying something is absent, check the Symbols, Imports, Calls, and Code sections.
+   
+   If the answer is not present in the context, say that the indexed context is insufficient.
 
     Repository context:
 
     {context}
+
+    Structured evidence:
+
+    {reasoning_context}
 
     User question:
 
@@ -288,7 +306,7 @@ def answer_question(question: str) -> dict:
         messages =[
             {
                 "role": "system",
-                "content": "You explain code accurately and cite file paths from the retrieved"
+                "content": "You explain code accurately using only the retrieved repository context. Cite file paths and line ranges when relevant."
             },
             {
                 "role": "user",
@@ -297,8 +315,12 @@ def answer_question(question: str) -> dict:
         ],
     )
 
+    validation = validate_answer(response["message"]["content"], chunks)
+
+
     return {
         "answer": response["message"]["content"],
+        "validation": validation,
         "sources": [
             {
                 "file_path": chunk["file_path"],
@@ -308,7 +330,41 @@ def answer_question(question: str) -> dict:
                 "adjusted_score": chunk["adjusted_score"],
                 "symbols": format_symbols(chunk),
             }
-            for chunk in chunks
+            for chunk in answer_chunks
         ],
     }
 
+def validate_answer(answer: str, chunks: list[dict]) -> dict:
+    warnings = []
+
+    answer_lower = answer.lower()
+
+    risky_phrases = [
+        "not shown",
+        "no explicit",
+        "does not show",
+        "missing",
+        "not present",
+        "not found",
+    ]
+
+    symbols = []
+    for chunk in chunks:
+        for symbol in chunk.get("semantic_symbols", []):
+            symbol_name = symbol.get("symbol_name")
+            if symbol_name:
+                symbols.append(symbol_name.lower())
+
+    for phrase in risky_phrases:
+        if phrase in answer_lower:
+            warnings.append({
+                "type": "possible_unsupported_absence_claim",
+                "phrase": phrase,
+                "message": "The answer claims something may be absent. Check retrieved symbols before trusting this claim.",
+                "retrieved_symbols": symbols,
+            })
+
+    return {
+        "is_valid": len(warnings) == 0,
+        "warnings": warnings,
+    }
