@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from app.indexer import index_repository,  get_indexed_summary, get_extension_summary, get_file_inventory, reset_index, get_graph_dependencies, get_graph_dependents, get_files_for_calls, get_graph_summary
-from app.retriever import answer_question, search_codebase, build_reasoning_context
+from app.retriever import answer_question, search_codebase, build_reasoning_context, run_ask_pipeline
 
 app = FastAPI(title = "AI Codebase Agent")
 
@@ -148,11 +148,24 @@ def get_reason_context(request: AskRequest):
         raise HTTPException(status_code=500, detail=str(error)) 
 
 
+
 @app.post("/ask")
 def ask_question(request: AskRequest):
     try: 
-        chunks = search_codebase(request.question,limit=10)
-        retrieved_context = build_reasoning_context(request.question,chunks)
-        return answer_question(request.question,retrieved_context)
+        result_llm = run_ask_pipeline(request.question)
+        return{
+            "answer": result_llm["answer"],
+            "validation": result_llm["validation"],
+            "sources": result_llm["sources"],
+        }
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))
+
+
+@app.post("/debug/ask")
+def trace_answer(request: AskRequest):
+    try: 
+        result_llm = run_ask_pipeline(request.question)
+        return result_llm
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error))

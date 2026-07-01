@@ -127,7 +127,7 @@ def search_codebase(question: str, limit: int=5) -> list[dict]:
     return chunks[:limit]
     
 def format_symbols(chunk: dict)-> str:
-    return ", ".join(f"{symbol.get("symbol_name") or ""} {symbol.get("symbol_type") or ""}".strip()
+    return ", ".join(f"{symbol.get("symbol_name") or ''} {symbol.get("symbol_type") or ''}".strip()
         for symbol in chunk.get("semantic_symbols",[])
     )
 
@@ -152,19 +152,17 @@ def is_test_file(chunk:dict) -> bool:
         or "/tests/" in file_path
     )
       
-def build_relationships(chunks: dict) -> str:
+def build_relationships(chunks: list[dict]) -> str:
     
     relationships = []
     seen = set()
 
     for chunk in chunks[:5]:
-        if is_test_file(chunk):
-            continue
         file_name = chunk["file_name"]
         
         for imported in chunk.get("imports", []):
             source = imported.get("source", "")
-            for symbol in imported.get("imported_symbol", []):
+            for symbol in imported.get("imported_symbols", []):
                 relationship = f"{file_name} imports {symbol} from {source}"
 
                 if relationship not in seen:
@@ -192,13 +190,13 @@ def build_relationships(chunks: dict) -> str:
     ) + "\n"
 
 
-def build_reasoning_context(question: str, chunks: dict) -> str:
+def build_reasoning_context(question: str, chunks: list[dict]) -> str:
     reasoning_context = ""
     reasoning_context += f"QUESTION:\n{question}\n\n"
     reasoning_context += "RETRIEVED FILES:\n"
 
     for chunk in chunks[:5]:
-        if chunk["extension"] == ".md":
+        if chunk["extension"] == ".md" or is_test_file(chunk):
             continue
         reasoning_context += f"{chunk['file_name']} {chunk['start_line']}-{chunk['end_line']}\n"
         symbol_count = 1
@@ -255,85 +253,32 @@ def build_reasoning_context(question: str, chunks: dict) -> str:
 
     return reasoning_context
 
-#RAG function -> Retrieval-Augmented Generation => Search first, then answer using what you found
-def answer_question(question: str, reasoning_context: str) -> dict:
-    chunks = search_codebase(question)
-    context = ""
+#trace pipeline
+def trace_pipeline(question: str, reasoning_context: str, context: str, validation: dict, chunks: list[dict], question_type: str) -> dict:
     answer_chunks = [
         chunk for chunk in chunks
-        if not is_test_file(chunk)
+        if not is_test_file(chunk) and not chunk["extension"] == ".md"
     ]
-    context = "\n\n".join(
-        f"FILE: {chunk['file_path']}\n"
-        f"CHUNK: {chunk['chunk_index']}\n"
-        f"CODE: \n{chunk['content']}"
-        for chunk in answer_chunks
-    )
-
-    prompt = f"""
-    You are a senior software engineer helping understand a codebase.
-
-    Answer the user's question using only the provided repository context and structured evidence.
-    
-    When the evidence clearly identifies multiple cooperating files, explain them as a flow instead of saying the answer is unclear.
-
-    Be precise about request direction. Interceptors attach headers to outgoing HTTP requests, not responses.
-
-    When explaining a flow, order steps by runtime or dependency sequence using the retrieved calls, imports, and file relationships.
-    
-   Do not claim something is missing if a relevant symbol, file, or call appears in the structured evidence. If unsure, say "the retrieved context does not show the full implementation details."
-   
-   Before saying something is absent, check the Symbols, Imports, Calls, and Code sections.
-   
-   If the answer is not present in the context, say that the indexed context is insufficient.
-
-    Repository context:
-
-    {context}
-
-    Structured evidence:
-
-    {reasoning_context}
-
-    User question:
-
-    {question}
-
-    """
-
-    response = chat(
-        model="llama3.2",
-        messages =[
-            {
-                "role": "system",
-                "content": "You explain code accurately using only the retrieved repository context. Cite file paths and line ranges when relevant."
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-    )
-
-    validation = validate_answer(response["message"]["content"], chunks)
-
-
-    return {
-        "answer": response["message"]["content"],
-        "validation": validation,
-        "sources": [
-            {
+    return{
+        "question_type": question_type,
+        "model": CHAT_MODEL,
+        "retrieved_chunks" : [{
                 "file_path": chunk["file_path"],
                 "lines": f"{chunk['start_line']}-{chunk['end_line']}",
-                "chunk_index": chunk["chunk_index"],
                 "score": chunk["score"],
                 "adjusted_score": chunk["adjusted_score"],
-                "symbols": format_symbols(chunk),
+                "chunk_index": chunk["chunk_index"],
+                "symbol_matches": chunk.get("symbol_matches", []),
             }
             for chunk in answer_chunks
         ],
+        "context_characters": len(context),
+        "reasoning_context_characters": len(reasoning_context),
+        "validation_warnings": validation["warnings"],
     }
 
+
+#validating answer produced by LLM
 def validate_answer(answer: str, chunks: list[dict]) -> dict:
     warnings = []
 
@@ -368,3 +313,124 @@ def validate_answer(answer: str, chunks: list[dict]) -> dict:
         "is_valid": len(warnings) == 0,
         "warnings": warnings,
     }
+
+
+#RAG function -> Retrieval-Augmented Generation => Search first, then answer using what you found
+def answer_question(question: str, reasoning_context: str, chunks: list[dict], question_type: str) -> dict:
+    context = ""
+    answer_chunks = [
+        chunk for chunk in chunks
+        if not is_test_file(chunk) and not chunk["extension"] == ".md"
+    ]
+    context = "\n\n".join(
+        f"FILE: {chunk['file_path']}\n"
+        f"CHUNK: {chunk['chunk_index']}\n"
+        f"CODE: \n{chunk['content']}"
+        for chunk in answer_chunks
+    )
+    
+
+    prompt = f"""
+    You are a senior software engineer helping understand a codebase.
+
+    Answer the user's question using only the provided repository context and structured evidence.
+    
+    When the evidence clearly identifies multiple cooperating files, explain them as a flow instead of saying the answer is unclear.
+
+    Be precise about request direction. Interceptors attach headers to outgoing HTTP requests, not responses.
+
+    When explaining a flow, order steps by runtime or dependency sequence using the retrieved calls, imports, and file relationships.
+    
+    Do not claim something is missing if a relevant symbol, file, or call appears in the structured evidence. If unsure, say "the retrieved context does not show the full implementation details."
+   
+    Before saying something is absent, check the Symbols, Imports, Calls, and Code sections.
+   
+    If the answer is not present in the context, say that the indexed context is insufficient.
+
+    Repository context:
+
+    {context}
+
+    Structured evidence:
+
+    {reasoning_context}
+
+    User question:
+
+    {question}
+
+    """
+    prompt += f"\n\nQuestion type: {question_type}\n"
+    if question_type == "flow_question":
+        prompt += "Answer style: explain the runtime, dependency, or call flow step by step."
+    elif question_type == "call_question":
+        prompt += "Answer style: identify where the method/function is called in the repository."
+    elif question_type == "location_question":
+        prompt += "Answer style: identify where the symbol, method, function, class, or dependency is declared or implemented."
+    elif question_type == "dependency_question":
+        prompt += "Answer style: explain which files depend on the requested symbol, module, or file."
+    elif question_type == "summary_question":
+        prompt += "Answer style: summarize the repository or module structure using the retrieved files."
+    else:
+        prompt += "Answer style: answer directly using the retrieved evidence."
+
+    response = chat(
+        model="llama3.2",
+        messages =[
+            {
+                "role": "system",
+                "content": "You explain code accurately using only the retrieved repository context. Cite file paths and line ranges when relevant."
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+    )
+
+    validation = validate_answer(response["message"]["content"], answer_chunks)
+
+    return {
+        "answer": response["message"]["content"],
+        "validation": validation,
+        "sources": [
+            {
+                "file_path": chunk["file_path"],
+                "lines": f"{chunk['start_line']}-{chunk['end_line']}",
+                "symbols": format_symbols(chunk),
+            }
+            for chunk in answer_chunks
+        ],
+        "trace": trace_pipeline(question, reasoning_context, context, validation, chunks, question_type),
+    }
+
+def classify_question(question: str) -> str:
+    terms = question.lower().replace("?","").split()
+
+    for term in terms:
+        
+        if term == "where":
+            if "called" in terms or "call" in terms or "calls" in terms:
+                return "call_question"
+            return "location_question"
+        if term == "trace" or term == "how":
+            return "flow_question"
+        if term == "depend" or term == "depends":
+            return "dependency_question"
+        if term == "summarize" or term == "summary":
+            return "summary_question"
+
+    return "general_question"
+
+
+# get_graph_dependents(query: str)
+# get_files_for_calls(query: str)
+
+
+def run_ask_pipeline(question: str) -> dict:
+    chunks = search_codebase(question, limit=10)
+    question_type = classify_question(question)
+    reasoning_context = build_reasoning_context(question, chunks)
+    result = answer_question(question, reasoning_context, chunks,question_type)
+
+    return result
